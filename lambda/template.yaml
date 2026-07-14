@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Billow Cost Collector - Scheduled Lambda for AWS cost data collection
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 128
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - production
+      - staging
+  CostTableName:
+    Type: String
+    Default: BillowCosts
+
+Resources:
+  # DynamoDB table for storing cost data
+  CostTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref CostTableName
+      BillingMode: PAY_PER_REQUEST  # On-demand pricing (cost-effective for low traffic)
+      AttributeDefinitions:
+        - AttributeName: date
+          AttributeType: S
+        - AttributeName: collectedAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: date
+          KeyType: HASH   # Partition key: the date (YYYY-MM-DD)
+        - AttributeName: collectedAt
+          KeyType: RANGE  # Sort key: timestamp of collection
+
+  # Lambda function that collects cost data
+  CostCollectorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub billow-cost-collector-${Environment}
+      Handler: cost_collector.handler
+      CodeUri: src/
+      Description: Collects AWS cost data every 6 hours and stores in DynamoDB
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref CostTableName
+      Policies:
+        # Least-privilege IAM: only the permissions this function needs
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - ce:GetCostAndUsage
+                - ce:GetCostForecast
+              Resource: '*'  # Cost Explorer doesn't support resource-level permissions
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:Query
+                - dynamodb:GetItem
+              Resource: !GetAtt CostTable.Arn
+      Events:
+        # Run every 6 hours
+        ScheduledCollection:
+          Type: Schedule
+          Properties:
+            Schedule: rate(6 hours)
+            Description: Collect AWS cost data every 6 hours
+            Enabled: true
+
+Outputs:
+  CostCollectorFunctionArn:
+    Description: ARN of the cost collector Lambda function
+    Value: !GetAtt CostCollectorFunction.Arn
+  CostTableArn:
+    Description: ARN of the DynamoDB cost table
+    Value: !GetAtt CostTable.Arn
