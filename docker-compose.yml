@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # Express.js backend API server
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - '4000:4000'
+    environment:
+      - PORT=4000
+      - NODE_ENV=development
+      - USE_MOCK_DATA=true
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=local
+      - AWS_SECRET_ACCESS_KEY=local
+      - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
+      - DYNAMODB_TABLE_COSTS=BillowCosts
+      - DYNAMODB_TABLE_BUDGET=BillowBudget
+      - CORS_ORIGIN=http://localhost:5173
+    depends_on:
+      - dynamodb-local
+    volumes:
+      - ./server/src:/app/src  # Hot reload in dev
+    networks:
+      - billow-network
+    restart: unless-stopped
+
+  # React + Vite frontend
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    ports:
+      - '5173:5173'
+    environment:
+      - VITE_API_URL=http://localhost:4000
+    volumes:
+      - ./client/src:/app/src  # Hot reload
+      - ./client/public:/app/public
+    networks:
+      - billow-network
+    restart: unless-stopped
+
+  # Local DynamoDB for development
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    ports:
+      - '8000:8000'
+    volumes:
+      - dynamodb-data:/home/dynamodblocal/data
+    command: '-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data'
+    networks:
+      - billow-network
+
+  # DynamoDB Admin UI (optional, for debugging)
+  dynamodb-admin:
+    image: aaronshaf/dynamodb-admin:latest
+    ports:
+      - '8001:8001'
+    environment:
+      - DYNAMO_ENDPOINT=http://dynamodb-local:8000
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=local
+      - AWS_SECRET_ACCESS_KEY=local
+    depends_on:
+      - dynamodb-local
+    networks:
+      - billow-network
+
+networks:
+  billow-network:
+    driver: bridge
+
+volumes:
+  dynamodb-data:
