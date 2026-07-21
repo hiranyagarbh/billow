@@ -9,6 +9,7 @@ import compression from 'compression';
 import { config } from './config/env.js';
 import apiRouter from './routes/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { createRateLimiter } from './middleware/rateLimiter.js';
 
 const app = express();
 
@@ -32,6 +33,10 @@ app.use(compression());
 
 // express.json: Parse JSON-formatted body data in POST/PUT requests
 app.use(express.json());
+
+// ─── Rate Limiting ───────────────────────────────────────────────────────────
+// 100 requests per minute per IP — generous for a dashboard that polls
+app.use('/api', createRateLimiter({ maxRequests: 100, windowMs: 60 * 1000 }));
 
 // ─── Router Mounting ─────────────────────────────────────────────────────────
 app.use('/api', apiRouter);
