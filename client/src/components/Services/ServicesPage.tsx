@@ -119,7 +119,7 @@ export const ServicesPage: React.FC = () => {
               />
               
               {/* Horizontal Bar with right-side rounded corners - animation disabled */}
-              <Bar dataKey="cost" layout="vertical" radius={[0, 4, 4, 0]} isAnimationActive={false}>
+              <Bar dataKey="cost" radius={[0, 4, 4, 0]} isAnimationActive={false}>
                 {sortedServices.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={getServiceColor(entry.serviceName)} />
                 ))}
